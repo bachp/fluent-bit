@@ -12,6 +12,8 @@ if (FLB_SYSTEM_WINDOWS)
   add_definitions(-DCOMPILING_WASM_RUNTIME_API=1)
 endif ()
 
+if(NOT iwasm_FOUND)
+
 # WAMR features switch
 
 # Set WAMR_BUILD_TARGET, currently values supported:
@@ -131,33 +133,57 @@ if (NOT MSVC)
   endif ()
 endif ()
 
+endif() # NOT iwasm_FOUND
+
 set (WAMR_BUILD_SIMD 0)
-set (WAMR_ROOT_DIR ../../${FLB_PATH_LIB_WASM_MICRO_RUNTIME})
 
-# build out vmlib-static
-include (${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
-add_library(vmlib-static STATIC ${WAMR_RUNTIME_LIB_SOURCE})
 
-# Application related
-include (${SHARED_DIR}/utils/uncommon/shared_uncommon.cmake)
+if(iwasm_FOUND)
+  # System wasm-micro-runtime: wrap iwasm::vmlib in a local alias so that the
+  # rest of the build (plugins, src/CMakeLists.txt) can keep using the name
+  # "vmlib-static" unconditionally.
+  add_library(vmlib-static INTERFACE)
+  target_link_libraries(vmlib-static INTERFACE iwasm::vmlib)
 
-# platform common sources
-include (${WAMR_ROOT_DIR}/core/shared/platform/common/libc-util/platform_common_libc_util.cmake)
+  set(src flb_wasm.c)
 
-set(src
-  flb_wasm.c
-  ${UNCOMMON_SHARED_SOURCE}) # link wasm-micro-runtime's uncommon object symbols (for bh_read_file_to_buffer)
+  add_library(flb-wasm-static STATIC ${src})
 
-add_library(flb-wasm-static STATIC ${src})
+  if (FLB_JEMALLOC AND ${CMAKE_SYSTEM_NAME} MATCHES "Linux" AND (NOT JEMALLOC_FOUND))
+    set(${JEMALLOC_LIBS} libjemalloc)
+    add_dependencies(flb-wasm-static libjemalloc)
+    include_directories("${CMAKE_BINARY_DIR}/include/")
+  endif ()
 
-if (FLB_JEMALLOC AND ${CMAKE_SYSTEM_NAME} MATCHES "Linux" AND (NOT JEMALLOC_FOUND))
-  set(${JEMALLOC_LIBS} libjemalloc)
-  add_dependencies(flb-wasm-static libjemalloc)
-  include_directories("${CMAKE_BINARY_DIR}/include/")
-endif ()
-
-if (WAMR_BUILD_LIBC_UVWASI)
-  target_link_libraries(flb-wasm-static vmlib-static ${UV_A_LIBS})
-else ()
   target_link_libraries(flb-wasm-static vmlib-static ${JEMALLOC_LIBRARIES})
+else()
+  set (WAMR_ROOT_DIR ../../${FLB_PATH_LIB_WASM_MICRO_RUNTIME})
+
+  # build out vmlib-static
+  include (${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
+  add_library(vmlib-static STATIC ${WAMR_RUNTIME_LIB_SOURCE})
+
+  # Application related
+  include (${SHARED_DIR}/utils/uncommon/shared_uncommon.cmake)
+
+  # platform common sources
+  include (${WAMR_ROOT_DIR}/core/shared/platform/common/libc-util/platform_common_libc_util.cmake)
+
+  set(src
+    flb_wasm.c
+    ${UNCOMMON_SHARED_SOURCE}) # link wasm-micro-runtime's uncommon object symbols (for bh_read_file_to_buffer)
+
+  add_library(flb-wasm-static STATIC ${src})
+
+  if (FLB_JEMALLOC AND ${CMAKE_SYSTEM_NAME} MATCHES "Linux" AND (NOT JEMALLOC_FOUND))
+    set(${JEMALLOC_LIBS} libjemalloc)
+    add_dependencies(flb-wasm-static libjemalloc)
+    include_directories("${CMAKE_BINARY_DIR}/include/")
+  endif ()
+
+  if (WAMR_BUILD_LIBC_UVWASI)
+    target_link_libraries(flb-wasm-static vmlib-static ${UV_A_LIBS})
+  else ()
+    target_link_libraries(flb-wasm-static vmlib-static ${JEMALLOC_LIBRARIES})
+  endif()
 endif()

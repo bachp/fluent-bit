@@ -17,10 +17,7 @@
  *  limitations under the License.
  */
 
-/* Don't use and expose bh_ prefixed headers in flb_wasm.h.
-   Their definitions are tightly coupled in wasm-micro-runtime library. */
-#include "bh_read_file.h"
-#include "bh_getopt.h"
+#include <stdio.h>
 
 #include <fluent-bit/flb_info.h>
 #include <fluent-bit/flb_mem.h>
@@ -69,11 +66,50 @@ void flb_wasm_config_destroy(struct flb_wasm_config *wasm_config)
     }
 }
 
+/*
+ * Read a file into a buffer allocated with flb_malloc.  The caller is
+ * responsible for freeing the returned pointer with flb_free.
+ */
+static char *flb_wasm_read_file(const char *path, uint32_t *ret_size)
+{
+    FILE     *f;
+    long      size;
+    char     *buf;
+
+    f = fopen(path, "rb");
+    if (!f) {
+        return NULL;
+    }
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return NULL;
+    }
+    size = ftell(f);
+    if (size < 0) {
+        fclose(f);
+        return NULL;
+    }
+    rewind(f);
+    buf = flb_malloc(size > 0 ? (size_t)size : 1);
+    if (!buf) {
+        fclose(f);
+        return NULL;
+    }
+    if (size > 0 && fread(buf, 1, (size_t)size, f) != (size_t)size) {
+        flb_free(buf);
+        fclose(f);
+        return NULL;
+    }
+    fclose(f);
+    *ret_size = (uint32_t)size;
+    return buf;
+}
+
 static int flb_wasm_load_wasm_binary(const char *wasm_path, int8_t **out_buf, uint32_t *out_size)
 {
     char *buffer;
     uint32_t buf_size;
-    buffer = bh_read_file_to_buffer(wasm_path, &buf_size);
+    buffer = flb_wasm_read_file(wasm_path, &buf_size);
     if (!buffer) {
         flb_error("Open wasm file [%s] failed.", wasm_path);
         goto error;
@@ -99,7 +135,7 @@ static int flb_wasm_load_wasm_binary(const char *wasm_path, int8_t **out_buf, ui
 
 error:
     if (buffer != NULL) {
-        BH_FREE(buffer);
+        flb_free(buffer);
     }
 
     return FLB_FALSE;
@@ -235,7 +271,7 @@ error:
         wasm_runtime_unload(module);
     }
     if (buffer != NULL) {
-        BH_FREE(buffer);
+        flb_free(buffer);
     }
     if (fw != NULL) {
         flb_free(fw);
@@ -460,7 +496,7 @@ void flb_wasm_destroy(struct flb_wasm *fw)
         wasm_runtime_unload(fw->module);
     }
     if (fw->buffer) {
-        BH_FREE(fw->buffer);
+        flb_free(fw->buffer);
     }
     wasm_runtime_destroy();
 

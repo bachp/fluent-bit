@@ -346,6 +346,7 @@ option(FLB_PREFER_SYSTEM_LIB_LUAJIT       "Prefer the libluajit system library" 
 option(FLB_PREFER_SYSTEM_LIB_MSGPACK      "Prefer the libmsgpack system library"      ${FLB_PREFER_SYSTEM_LIBS})
 option(FLB_PREFER_SYSTEM_LIB_NGHTTP2      "Prefer the libnghttp2 system library"      ${FLB_PREFER_SYSTEM_LIBS})
 option(FLB_PREFER_SYSTEM_LIB_SQLITE       "Prefer the libsqlite3 system library"      ${FLB_PREFER_SYSTEM_LIBS})
+option(FLB_PREFER_SYSTEM_LIB_WAMR         "Prefer the system wasm-micro-runtime (iwasm) library" ${FLB_PREFER_SYSTEM_LIBS})
 option(FLB_PREFER_SYSTEM_LIB_ZSTD         "Prefer the libzstd system library"         ${FLB_PREFER_SYSTEM_LIBS})
 
 # Enable all features
@@ -911,6 +912,25 @@ if(FLB_WASM)
     enable_language (ASM)
     FLB_DEFINITION(FLB_HAVE_WASM)
   endif ()
+endif()
+
+# Attempt to use system wasm-micro-runtime when requested
+if(FLB_WASM AND FLB_PREFER_SYSTEM_LIB_WAMR)
+  find_package(iwasm QUIET)
+  if(iwasm_FOUND)
+    message(STATUS "Using system wasm-micro-runtime (iwasm)")
+    set(FLB_WAMR_INCLUDE_DIRS "")
+    get_target_property(_wamr_incdirs iwasm::vmlib INTERFACE_INCLUDE_DIRECTORIES)
+    if(_wamr_incdirs)
+      set(FLB_WAMR_INCLUDE_DIRS "${_wamr_incdirs}")
+    endif()
+    unset(_wamr_incdirs)
+  else()
+    message(STATUS "System wasm-micro-runtime (iwasm) not found, falling back to bundled")
+  endif()
+endif()
+if(FLB_WASM AND NOT iwasm_FOUND)
+  set(FLB_WAMR_INCLUDE_DIRS "${FLB_ROOT}/${FLB_PATH_LIB_WASM_MICRO_RUNTIME}/core/iwasm/include")
 endif()
 
 # ripser
