@@ -272,6 +272,14 @@ if (FLB_PROCESSOR_CUMULATIVE_TO_DELTA)
               "processor_cumulative_to_delta.c")
 endif()
 
+if (FLB_PROCESSOR_SYSLOG_TO_OPENTELEMETRY)
+  FLB_RT_TEST(FLB_PROCESSOR_SYSLOG_TO_OPENTELEMETRY "processor_syslog_to_opentelemetry.c")
+endif()
+
+if (FLB_PROCESSOR_JOURNALD_TO_OPENTELEMETRY)
+  FLB_RT_TEST(FLB_PROCESSOR_JOURNALD_TO_OPENTELEMETRY "processor_journald_to_opentelemetry.c")
+endif()
+
 # HTTP Client Debug (requires -DFLB_HTTP_CLIENT_DEBUG=On)
 if(FLB_HTTP_CLIENT_DEBUG)
   FLB_RT_TEST(FLB_OUT_TD           "http_callbacks.c")
