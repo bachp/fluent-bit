@@ -1,0 +1,21 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  # Prints the decoded OTLP payload, including resource attributes, log record
+  # attributes, severity and body, which is exactly what has to be inspected
+  # to verify the mapping.
+  debug:
+    verbosity: detailed
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    logs:
+      receivers: [otlp]
+      exporters: [debug]
