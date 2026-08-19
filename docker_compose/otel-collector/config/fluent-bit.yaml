@@ -1,0 +1,41 @@
+service:
+  log_level: info
+  flush: 1
+  parsers_file: /fluent-bit/etc/parsers.conf
+
+pipeline:
+  inputs:
+    - name: systemd
+      tag: journal
+      # Start at the end of the journal so the output only shows entries that
+      # are produced while the stack is running.
+      read_from_tail: on
+      # The mapping table uses the trusted field names as journald spells
+      # them (_PID, _HOSTNAME, ...), so the underscores must be kept.
+      strip_underscores: off
+      # Avoid ingesting the Collector's own debug output through Podman's
+      # journald log driver. The README uses this identifier for test records.
+      systemd_filter: SYSLOG_IDENTIFIER=demo
+
+      processors:
+        logs:
+          - name: journald_otel
+
+    - name: syslog
+      tag: syslog
+      mode: udp
+      listen: 0.0.0.0
+      port: 514
+      parser: syslog-rfc5424
+
+      processors:
+        logs:
+          - name: syslog_otel
+
+  outputs:
+    - name: opentelemetry
+      match: '*'
+      host: otel-collector
+      port: 4318
+      logs_uri: /v1/logs
+      tls: off

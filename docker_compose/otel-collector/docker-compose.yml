@@ -1,0 +1,40 @@
+services:
+  fluentbit:
+    build:
+      context: ../../
+      dockerfile: dockerfiles/Dockerfile
+      target: production
+    depends_on:
+      - otel-collector
+    command: /fluent-bit/bin/fluent-bit -c /etc/fluent-bit.yaml
+    networks:
+      - otel-network
+    ports:
+      - 5514:514/udp
+    security_opt:
+      # The host journal must keep its system SELinux label.
+      - label=disable
+    volumes:
+      - ./config/fluent-bit.yaml:/etc/fluent-bit.yaml:ro,z
+      # The journal itself, plus the machine-id that sd-journal needs to
+      # resolve the local machine's journal files.
+      - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+
+  otel-collector:
+    image: docker.io/otel/opentelemetry-collector-contrib:latest
+    # The image normally runs as a non-root user, which cannot read
+    # bind-mounted configuration files from checkouts with a restrictive umask.
+    user: "0"
+    command: ["--config=/etc/otelcol/config.yaml"]
+    networks:
+      - otel-network
+    ports:
+      - 4318:4318
+    volumes:
+      - ./config/otel-collector.yaml:/etc/otelcol/config.yaml:ro,z
+
+networks:
+  otel-network:
+    driver: bridge
